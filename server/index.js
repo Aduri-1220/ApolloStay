@@ -539,6 +539,29 @@ async function loadFavoritesRuntime(userId = null) {
   return result.rows.map((row) => row.raw);
 }
 
+async function attachPlannerPreferenceSignals(plan, authUserId, profile) {
+  if (!authUserId) {
+    return plan;
+  }
+
+  const favorites = await loadFavoritesRuntime(authUserId);
+  const favoriteFoodIds = favorites
+    .map((item) => String(item?.foodId || "").trim())
+    .filter(Boolean);
+  const favoriteFoodTitles = favorites
+    .map((item) => String(item?.description || item?.title || "").trim())
+    .filter(Boolean);
+
+  return {
+    ...plan,
+    userId: authUserId,
+    likedFoodTerms: Array.isArray(profile?.likedFoods) ? profile.likedFoods : [],
+    dislikedFoodTerms: Array.isArray(profile?.dislikedFoods) ? profile.dislikedFoods : [],
+    favoriteFoodIds,
+    favoriteFoodTitles
+  };
+}
+
 async function upsertFavoriteRuntime(favorite) {
   if (!isPostgresEnabled()) {
     const favorites = loadFavorites();
@@ -1503,16 +1526,14 @@ async function generateSavedMealPlanWithMedicalRecords({ authUser, planDate, use
   for (const [mealType, prompt] of mealPrompts) {
     const mealCalorieTarget = getMealCalorieTarget(profile, mealType);
     const recentPlanTitles = await getRecentPlannedTitles(authUser.id, mealType);
-    const plan = {
-      ...(await createRecommendationPlanWithFallback({
+    const rawPlan = await createRecommendationPlanWithFallback({
         profile,
         medicalRecords,
         userPrompt: prompt,
         recentLogs,
         recentPlanTitles
-      })),
-      userId: authUser.id
-    };
+      });
+    const plan = await attachPlannerPreferenceSignals(rawPlan, authUser.id, profile);
     const candidates = await collectRecommendationCandidates(plan, authUser.id);
     const recommendation = await chooseMealsWithFallback({
       profile,
@@ -1670,13 +1691,14 @@ async function buildNearbyMealContext({ authUser, planDate, mealType }) {
   const prompt = plannedMeal
     ? `Find a nearby ${normalizedMealType} option similar to ${plannedMeal.title}. ${plannedMeal.whyItFits}`
     : `Find a nearby ${normalizedMealType} that fits my diet plan and medical needs.`;
-  const plan = await createRecommendationPlanWithFallback({
+  const rawPlan = await createRecommendationPlanWithFallback({
     profile,
     medicalRecords,
     userPrompt: prompt,
     recentLogs,
-      recentPlanTitles: await getRecentPlannedTitles(authUser.id, normalizedMealType)
+    recentPlanTitles: await getRecentPlannedTitles(authUser.id, normalizedMealType)
   });
+  const plan = await attachPlannerPreferenceSignals(rawPlan, authUser.id, profile);
 
   return {
     plan,
@@ -2970,16 +2992,14 @@ const server = http.createServer(async (request, response) => {
       const recentLogs = await loadMealLogsForUserRuntime(authUser.id)
         .sort((left, right) => left.consumedAt.localeCompare(right.consumedAt))
         .slice(-20);
-      const plan = {
-        ...(await createRecommendationPlanWithFallback({
+      const rawPlan = await createRecommendationPlanWithFallback({
           profile,
           medicalRecords,
           userPrompt,
           recentLogs,
           recentPlanTitles: await getRecentPlannedTitles(authUser.id, null)
-        })),
-        userId: userId
-      };
+        });
+      const plan = await attachPlannerPreferenceSignals(rawPlan, userId, profile);
 
       const candidateMap = new Map();
       for (const query of plan.searchQueries) {

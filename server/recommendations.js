@@ -576,6 +576,14 @@ function getCandidateText(candidate) {
   );
 }
 
+function candidateMatchesAnyTerm(candidate, terms) {
+  const text = getCandidateText(candidate);
+  return (terms || [])
+    .map((term) => normalizeFoodSearchQuery(term))
+    .filter(Boolean)
+    .some((term) => text.includes(term));
+}
+
 function scoreCandidate(candidate, plan) {
   const text = getCandidateText(candidate);
   const dietType = getFoodDietType(candidate);
@@ -589,6 +597,10 @@ function scoreCandidate(candidate, plan) {
     candidate?.metadata?.customFoodOwnerId &&
     candidate.metadata.customFoodOwnerId === plan.userId;
   let score = 0;
+  const likedFoodTerms = Array.isArray(plan.likedFoodTerms) ? plan.likedFoodTerms : [];
+  const dislikedFoodTerms = Array.isArray(plan.dislikedFoodTerms) ? plan.dislikedFoodTerms : [];
+  const favoriteFoodTitles = Array.isArray(plan.favoriteFoodTitles) ? plan.favoriteFoodTitles : [];
+  const favoriteFoodIds = Array.isArray(plan.favoriteFoodIds) ? plan.favoriteFoodIds : [];
 
   for (const query of plan.searchQueries) {
     if (text.includes(normalizeFoodSearchQuery(query))) {
@@ -648,6 +660,18 @@ function scoreCandidate(candidate, plan) {
 
   if (plan.promptSignals?.wantsLight && /(salad|fruit|yogurt|sprouts|soup)/.test(text)) {
     score += 3;
+  }
+
+  if (candidateMatchesAnyTerm(candidate, likedFoodTerms)) {
+    score += 12;
+  }
+  if (candidateMatchesAnyTerm(candidate, dislikedFoodTerms)) {
+    score -= 18;
+  }
+  if (favoriteFoodIds.includes(candidate?.fdcId)) {
+    score += 14;
+  } else if (candidateMatchesAnyTerm(candidate, favoriteFoodTitles)) {
+    score += 10;
   }
 
   if (plan.nutritionPriorities.includes("higher_protein_balanced_carbs") && typeof protein === "number") {
@@ -724,6 +748,10 @@ function scoreCandidate(candidate, plan) {
 
   if (plan.mealType !== "breakfast" && plan.dietStyle === "non_vegetarian" && /(chicken|fish|egg curry|omelette|prawn)/.test(text)) {
     score += 10;
+  }
+
+  if (candidateMatchesAnyTerm(candidate, dislikedFoodTerms) && score > 8) {
+    score = 8;
   }
 
   return score;
