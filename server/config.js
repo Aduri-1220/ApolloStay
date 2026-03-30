@@ -12,6 +12,11 @@ const parsedMaxMedicalUploadBytes = Number(process.env.MAX_MEDICAL_UPLOAD_BYTES 
 const parsedMaxMealScanBytes = Number(process.env.MAX_MEAL_SCAN_BYTES || 6 * 1024 * 1024);
 const parsedMaxVoiceUploadBytes = Number(process.env.MAX_VOICE_UPLOAD_BYTES || 8 * 1024 * 1024);
 const customFoodReviewUsageThreshold = Number(process.env.CUSTOM_FOOD_REVIEW_USAGE_THRESHOLD || 5);
+const datasetsRoot = path.join(workspaceRoot, "data", "datasets");
+const usdaDatasetsRoot = path.join(datasetsRoot, "usda");
+const indianDatasetsRoot = path.join(datasetsRoot, "indian");
+const healthDatasetsRoot = path.join(datasetsRoot, "health");
+const fnddsDatasetsRoot = path.join(datasetsRoot, "fndds");
 const adminEmails = String(process.env.ADMIN_EMAILS || "")
   .split(",")
   .map((item) => item.trim().toLowerCase())
@@ -58,24 +63,24 @@ module.exports = {
   uploadsDir: path.join(workspaceRoot, "data", "uploads"),
   healthProfilePath:
     process.env.HEALTH_PROFILE_CSV ||
-    "/Users/chinnicherrishmareddyaduri/Downloads/HealthProfile_export.csv",
+    path.join(healthDatasetsRoot, "HealthProfile_export.csv"),
   foodCsvPath:
     process.env.FOOD_CSV ||
-    "/Users/chinnicherrishmareddyaduri/Downloads/FoodData_Central_foundation_food_csv_2025-12-18/food.csv",
+    path.join(usdaDatasetsRoot, "food.csv"),
   foundationFoodCsvPath:
     process.env.FOUNDATION_FOOD_CSV ||
-    "/Users/chinnicherrishmareddyaduri/Downloads/FoodData_Central_foundation_food_csv_2025-12-18/foundation_food.csv",
+    path.join(usdaDatasetsRoot, "foundation_food.csv"),
   foodNutrientCsvPath:
     process.env.FOOD_NUTRIENT_CSV ||
-    "/Users/chinnicherrishmareddyaduri/Downloads/FoodData_Central_foundation_food_csv_2025-12-18/food_nutrient.csv",
+    path.join(usdaDatasetsRoot, "food_nutrient.csv"),
   indianNutritionZipPath:
     process.env.INDIAN_NUTRITION_ZIP ||
-    "/Users/chinnicherrishmareddyaduri/Downloads/indian_food1.zip",
+    path.join(indianDatasetsRoot, "indian_food1.zip"),
   indianMealsZipPath:
     process.env.INDIAN_MEALS_ZIP ||
-    "/Users/chinnicherrishmareddyaduri/Downloads/Indian_food2.zip",
+    path.join(indianDatasetsRoot, "Indian_food2.zip"),
   fnddsMainFoodCsvPath:
-    process.env.FNDDS_MAIN_FOOD_CSV || path.join(workspaceRoot, "data", "fndds", "fndds_main_food.csv"),
+    process.env.FNDDS_MAIN_FOOD_CSV || path.join(fnddsDatasetsRoot, "fndds_main_food.csv"),
   fnddsNutrientCsvPath:
-    process.env.FNDDS_NUTRIENT_CSV || path.join(workspaceRoot, "data", "fndds", "fndds_nutrient_values.csv")
+    process.env.FNDDS_NUTRIENT_CSV || path.join(fnddsDatasetsRoot, "fndds_nutrient_values.csv")
 };

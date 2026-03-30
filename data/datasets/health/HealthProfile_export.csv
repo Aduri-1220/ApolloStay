@@ -1,0 +1,2 @@
+allergies,dietary_preferences,onboarding_completed,activity_level,target_weight_kg,gender,weight_kg,date_of_birth,height_cm,health_goals,daily_calorie_target,medical_conditions,id,created_date,updated_date,created_by_id,created_by,is_sample
+"[]","[""none""]","true","moderately_active","63","female","63","2000-06-18","165","[""maintain_weight""]","2215","[""none""]","69957543d4c589db51522baf","2026-02-18T08:16:03.183000","2026-02-18T08:16:03.183000","6995622fbf4ccc980f0b3605","a.cherrishma@gmail.com","false"
