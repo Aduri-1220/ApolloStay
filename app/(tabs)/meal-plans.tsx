@@ -202,10 +202,15 @@ function mapCatalogMealToTemplate(item: PlannerCatalogMeal): MealTemplate | null
   };
 }
 
+function hasUsableMealNutrition(item: Pick<MealTemplate, "calories" | "protein" | "carbs" | "fat">) {
+  return Number(item.calories || 0) > 0 || Number(item.protein || 0) > 0 || Number(item.carbs || 0) > 0 || Number(item.fat || 0) > 0;
+}
+
 function buildPlannerMealPool(catalogMeals: PlannerCatalogMeal[]) {
   const catalogTemplates = catalogMeals.map(mapCatalogMealToTemplate).filter(Boolean) as MealTemplate[];
   const seen = new Set<string>();
   return catalogTemplates
+    .filter(hasUsableMealNutrition)
     .sort((left, right) => {
       const sourceDelta = getSourcePriority(right.source) - getSourcePriority(left.source);
       if (sourceDelta !== 0) {
@@ -1511,9 +1516,9 @@ export default function MealPlansScreen() {
           </View>
           <View style={styles.actionGrid}>
             {[
-              { label: "Create", icon: "add" as const, onPress: handleGeneratePlan },
-              { label: "Edit", icon: "create-outline" as const, onPress: () => setPlannerTab("planner") },
-              { label: "More", icon: "ellipsis-horizontal" as const, onPress: () => setPlannerTab("groceries") }
+              { label: "Generate", icon: "add" as const, onPress: handleGeneratePlan },
+              { label: "Planner", icon: "create-outline" as const, onPress: () => setPlannerTab("planner") },
+              { label: "Groceries", icon: "ellipsis-horizontal" as const, onPress: () => setPlannerTab("groceries") }
             ].map((action) => (
               <Pressable key={action.label} onPress={action.onPress} style={styles.actionCard}>
                 <Ionicons name={action.icon} size={22} color={palette.primary} />
