@@ -35,7 +35,61 @@ function calculateBmi(weightKg, heightCm) {
   return Number((weightKg / (heightMeters * heightMeters)).toFixed(1));
 }
 
-function calculateDailyCalorieTarget({ gender, weightKg, heightCm, age, activityLevel, healthGoals, targetWeightKg }) {
+function containsCondition(values, patterns) {
+  const normalized = Array.isArray(values) ? values.map((item) => String(item || "").toLowerCase()) : [];
+  return normalized.some((value) => patterns.some((pattern) => pattern.test(value)));
+}
+
+function getCalorieFloor({ gender, bmi, activityLevel, medicalConditions, clinicalMetrics }) {
+  const normalizedGender = String(gender || "").toLowerCase();
+  const normalizedActivity = String(activityLevel || "").toLowerCase();
+  const isFemale = normalizedGender.includes("female");
+
+  let floor = isFemale ? 1350 : 1500;
+
+  if (normalizedActivity.includes("moderate")) {
+    floor += 50;
+  } else if (normalizedActivity.includes("very")) {
+    floor += 100;
+  }
+
+  if (typeof bmi === "number" && bmi < 18.5) {
+    floor += 250;
+  } else if (typeof bmi === "number" && bmi < 20) {
+    floor += 120;
+  }
+
+  const allConditions = [
+    ...(Array.isArray(medicalConditions) ? medicalConditions : []),
+    ...(Array.isArray(clinicalMetrics?.reportDerivedConditions) ? clinicalMetrics.reportDerivedConditions : [])
+  ];
+
+  if (containsCondition(allConditions, [/pregnan/i, /breastfeed/i, /lactat/i])) {
+    floor += 250;
+  }
+
+  if (containsCondition(allConditions, [/kidney/i, /\bckd\b/i, /renal/i, /dialysis/i])) {
+    floor += 150;
+  }
+
+  if (containsCondition(allConditions, [/anemi/i, /iron deficien/i])) {
+    floor += 100;
+  }
+
+  return floor;
+}
+
+function calculateDailyCalorieTarget({
+  gender,
+  weightKg,
+  heightCm,
+  age,
+  activityLevel,
+  healthGoals,
+  targetWeightKg,
+  medicalConditions,
+  clinicalMetrics
+}) {
   if (!weightKg || !heightCm || !age) {
     return 2000;
   }
@@ -57,19 +111,75 @@ function calculateDailyCalorieTarget({ gender, weightKg, heightCm, age, activity
         : 1.2;
 
   const goals = Array.isArray(healthGoals) ? healthGoals.map((item) => String(item).toLowerCase()) : [];
+  const bmi = calculateBmi(Number(weightKg), Number(heightCm));
+  const targetDelta = Number(targetWeightKg || 0) - Number(weightKg || 0);
+  const isWeightLossGoal =
+    goals.some((goal) => goal.includes("lose")) || (Number.isFinite(targetDelta) && targetDelta < -0.2);
+  const isWeightGainGoal =
+    goals.some((goal) => goal.includes("gain") || goal.includes("build")) ||
+    (Number.isFinite(targetDelta) && targetDelta > 0.2);
+
+  const allConditions = [
+    ...(Array.isArray(medicalConditions) ? medicalConditions : []),
+    ...(Array.isArray(clinicalMetrics?.reportDerivedConditions) ? clinicalMetrics.reportDerivedConditions : [])
+  ];
+
+  const hasGlucoseOrMetabolicRisk = containsCondition(allConditions, [
+    /diabet/i,
+    /prediabet/i,
+    /insulin/i,
+    /pcos/i,
+    /metabolic/i
+  ]);
+  const hasKidneyRisk = containsCondition(allConditions, [/kidney/i, /\bckd\b/i, /renal/i, /dialysis/i]);
+  const hasAnemiaRisk =
+    containsCondition(allConditions, [/anemi/i, /iron deficien/i]) ||
+    /hemoglobin/i.test(String(clinicalMetrics?.hemoglobin?.label || ""));
+  const hasThyroidContext = containsCondition(allConditions, [/thyroid/i, /hypothyroid/i, /hyperthyroid/i]);
+
   let adjustment = 0;
 
-  if (goals.some((goal) => goal.includes("lose"))) {
-    adjustment = -350;
-  } else if (goals.some((goal) => goal.includes("gain") || goal.includes("build"))) {
-    adjustment = 250;
-  } else if (targetWeightKg && weightKg && Number(targetWeightKg) < Number(weightKg)) {
-    adjustment = -250;
-  } else if (targetWeightKg && weightKg && Number(targetWeightKg) > Number(weightKg)) {
-    adjustment = 200;
+  if (isWeightLossGoal) {
+    if (typeof bmi === "number" && bmi >= 30) {
+      adjustment = -450;
+    } else if (typeof bmi === "number" && bmi >= 25) {
+      adjustment = -350;
+    } else if (typeof bmi === "number" && bmi >= 21) {
+      adjustment = -250;
+    } else {
+      adjustment = -150;
+    }
+  } else if (isWeightGainGoal) {
+    adjustment = typeof bmi === "number" && bmi < 18.5 ? 300 : 200;
   }
 
-  return Math.max(1200, Math.round(bmr * multiplier + adjustment));
+  // Keep deficits gentler when health context suggests more caution.
+  if (adjustment < 0) {
+    if (hasGlucoseOrMetabolicRisk) {
+      adjustment = Math.max(adjustment, -200);
+    }
+    if (hasKidneyRisk || hasAnemiaRisk || hasThyroidContext) {
+      adjustment = Math.max(adjustment, -150);
+    }
+    if (typeof bmi === "number" && bmi < 20) {
+      adjustment = Math.max(adjustment, -100);
+    }
+  }
+
+  if (adjustment > 0 && hasGlucoseOrMetabolicRisk) {
+    adjustment = Math.min(adjustment, 200);
+  }
+
+  const maintenanceCalories = bmr * multiplier;
+  const floor = getCalorieFloor({
+    gender,
+    bmi,
+    activityLevel,
+    medicalConditions: allConditions,
+    clinicalMetrics
+  });
+
+  return Math.max(floor, Math.round(maintenanceCalories + adjustment));
 }
 
 function normalizeStringArray(values) {
@@ -377,7 +487,9 @@ function mergeProfile(baseProfile, override, clinicalMetrics) {
     age: merged.age,
     activityLevel: merged.activityLevel,
     healthGoals: merged.healthGoals,
-    targetWeightKg: merged.targetWeightKg
+    targetWeightKg: merged.targetWeightKg,
+    medicalConditions: merged.medicalConditions,
+    clinicalMetrics
   });
   merged.updatedDate = override?.updatedDate || merged.updatedDate;
   merged.clinicalMetrics = clinicalMetrics;
