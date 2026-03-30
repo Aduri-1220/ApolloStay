@@ -1,0 +1,73 @@
+{
+  "expo": {
+    "name": "ApolloStay",
+    "slug": "apollostay",
+    "scheme": "apollostay",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#0B1C17"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.apollostay.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1C17"
+      },
+      "package": "com.apollostay.app",
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_RESTING_HEART_RATE",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
+        "android.permission.health.READ_BLOOD_PRESSURE",
+        "android.permission.health.READ_BLOOD_GLUCOSE",
+        "android.permission.health.READ_WEIGHT"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "react-native-health-connect",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow ApolloStay to access your microphone for spoken food logging."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow ApolloStay to use your camera for barcode scanning."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow ApolloStay to use your location for nearby restaurant suggestions."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
