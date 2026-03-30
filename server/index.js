@@ -1851,8 +1851,12 @@ const server = http.createServer(async (request, response) => {
       return;
     }
 
-    if (request.method === "GET" && url.pathname === "/health") {
-      sendJson(response, 200, { status: "ok" });
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health" || url.pathname === "/healthz")) {
+      sendJson(response, 200, {
+        status: "ok",
+        service: "ApolloStay API",
+        timestamp: new Date().toISOString()
+      });
       return;
     }
 
