@@ -1,4 +1,5 @@
 const { loadMealLogs, saveMealLogs } = require("./store");
+const { isPostgresEnabled, query } = require("./postgres");
 
 function normalizePlannerCandidateText(value) {
   return String(value || "")
@@ -20,12 +21,51 @@ function buildPlannerCandidateKey({ mealType, title }) {
   return `${normalizeMealType(mealType)}:${normalizePlannerCandidateText(title)}`;
 }
 
-function loadPlannerCandidates(storePath) {
-  return loadMealLogs(storePath);
+async function loadPlannerCandidates(storePath) {
+  if (!isPostgresEnabled()) {
+    return loadMealLogs(storePath);
+  }
+  const result = await query(
+    `
+      SELECT raw
+      FROM planner_candidates
+      ORDER BY updated_at DESC, quality_score DESC, id ASC
+    `
+  );
+  return result.rows.map((row) => row.raw);
 }
 
-function savePlannerCandidates(storePath, candidates) {
-  saveMealLogs(storePath, candidates);
+async function savePlannerCandidates(storePath, candidates) {
+  if (!isPostgresEnabled()) {
+    saveMealLogs(storePath, candidates);
+    return;
+  }
+
+  await query("BEGIN");
+  try {
+    await query("DELETE FROM planner_candidates");
+    for (const candidate of candidates || []) {
+      await query(
+        `
+          INSERT INTO planner_candidates (id, meal_type, normalized_title, status, quality_score, updated_at, raw)
+          VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()), $7::jsonb)
+        `,
+        [
+          String(candidate.id),
+          normalizeMealType(candidate.mealType),
+          normalizePlannerCandidateText(candidate.normalizedTitle || candidate.title),
+          String(candidate.status || "candidate"),
+          Number(candidate.qualityScore || 0),
+          candidate.reviewedAt || candidate.lastSeenAt || candidate.createdAt || null,
+          JSON.stringify(candidate)
+        ]
+      );
+    }
+    await query("COMMIT");
+  } catch (error) {
+    await query("ROLLBACK");
+    throw error;
+  }
 }
 
 function buildPlannerFeedbackIndex(candidates) {
@@ -105,8 +145,8 @@ function updatePlannerCandidateWithFeedback(existingCandidate, feedback) {
   return next;
 }
 
-function recordPlannerFeedback(storePath, feedback) {
-  const candidates = loadPlannerCandidates(storePath);
+async function recordPlannerFeedback(storePath, feedback) {
+  const candidates = await loadPlannerCandidates(storePath);
   const id = buildPlannerCandidateKey(feedback);
   const existing = candidates.find((candidate) => candidate.id === id);
   const baseCandidate =
@@ -140,12 +180,12 @@ function recordPlannerFeedback(storePath, feedback) {
 
   const updated = updatePlannerCandidateWithFeedback(baseCandidate, feedback);
   const nextCandidates = existing ? candidates.map((candidate) => (candidate.id === updated.id ? updated : candidate)) : [...candidates, updated];
-  savePlannerCandidates(storePath, nextCandidates);
+  await savePlannerCandidates(storePath, nextCandidates);
   return updated;
 }
 
-function listPlannerCandidatesForReview(storePath) {
-  return loadPlannerCandidates(storePath)
+async function listPlannerCandidatesForReview(storePath) {
+  return (await loadPlannerCandidates(storePath))
     .map((candidate) => ({
       ...candidate,
       qualityScore: scorePlannerCandidate(candidate),
@@ -159,22 +199,59 @@ function listPlannerCandidatesForReview(storePath) {
     });
 }
 
-function loadReviewedPlannerMeals(storePath) {
-  return loadMealLogs(storePath);
+async function loadReviewedPlannerMeals(storePath) {
+  if (!isPostgresEnabled()) {
+    return loadMealLogs(storePath);
+  }
+  const result = await query(
+    `
+      SELECT raw
+      FROM reviewed_planner_meals
+      ORDER BY reviewed_at DESC NULLS LAST, id ASC
+    `
+  );
+  return result.rows.map((row) => row.raw);
 }
 
-function saveReviewedPlannerMeals(storePath, meals) {
-  saveMealLogs(storePath, meals);
+async function saveReviewedPlannerMeals(storePath, meals) {
+  if (!isPostgresEnabled()) {
+    saveMealLogs(storePath, meals);
+    return;
+  }
+
+  await query("BEGIN");
+  try {
+    await query("DELETE FROM reviewed_planner_meals");
+    for (const meal of meals || []) {
+      await query(
+        `
+          INSERT INTO reviewed_planner_meals (id, meal_type, source_candidate_id, reviewed_at, raw)
+          VALUES ($1, $2, $3, $4::timestamptz, $5::jsonb)
+        `,
+        [
+          String(meal.id),
+          normalizeMealType(meal.mealType),
+          meal.sourceCandidateId || null,
+          meal.reviewedAt || null,
+          JSON.stringify(meal)
+        ]
+      );
+    }
+    await query("COMMIT");
+  } catch (error) {
+    await query("ROLLBACK");
+    throw error;
+  }
 }
 
-function promotePlannerCandidate({ candidatesPath, reviewedMealsPath, candidateId, reviewedBy, reviewNotes = "" }) {
-  const candidates = loadPlannerCandidates(candidatesPath);
+async function promotePlannerCandidate({ candidatesPath, reviewedMealsPath, candidateId, reviewedBy, reviewNotes = "" }) {
+  const candidates = await loadPlannerCandidates(candidatesPath);
   const candidate = candidates.find((item) => item.id === candidateId);
   if (!candidate) {
     return null;
   }
 
-  const reviewedMeals = loadReviewedPlannerMeals(reviewedMealsPath);
+  const reviewedMeals = await loadReviewedPlannerMeals(reviewedMealsPath);
   const existingIndex = reviewedMeals.findIndex((meal) => meal.sourceCandidateId === candidateId);
   const reviewedMeal = {
     id: existingIndex >= 0 ? reviewedMeals[existingIndex].id : `reviewed-planner-${candidate.id.replace(/[^a-z0-9_-]/gi, "-")}`,
@@ -203,7 +280,7 @@ function promotePlannerCandidate({ candidatesPath, reviewedMealsPath, candidateI
   } else {
     reviewedMeals.push(reviewedMeal);
   }
-  saveReviewedPlannerMeals(reviewedMealsPath, reviewedMeals);
+  await saveReviewedPlannerMeals(reviewedMealsPath, reviewedMeals);
 
   const updatedCandidates = candidates.map((item) =>
     item.id === candidateId
@@ -217,13 +294,13 @@ function promotePlannerCandidate({ candidatesPath, reviewedMealsPath, candidateI
         }
       : item
   );
-  savePlannerCandidates(candidatesPath, updatedCandidates);
+  await savePlannerCandidates(candidatesPath, updatedCandidates);
 
   return reviewedMeal;
 }
 
-function rejectPlannerCandidate({ candidatesPath, candidateId, reviewedBy, reviewNotes = "" }) {
-  const candidates = loadPlannerCandidates(candidatesPath);
+async function rejectPlannerCandidate({ candidatesPath, candidateId, reviewedBy, reviewNotes = "" }) {
+  const candidates = await loadPlannerCandidates(candidatesPath);
   const candidate = candidates.find((item) => item.id === candidateId);
   if (!candidate) {
     return null;
@@ -239,7 +316,7 @@ function rejectPlannerCandidate({ candidatesPath, candidateId, reviewedBy, revie
         }
       : item
   );
-  savePlannerCandidates(candidatesPath, updated);
+  await savePlannerCandidates(candidatesPath, updated);
   return updated.find((item) => item.id === candidateId) || null;
 }
 

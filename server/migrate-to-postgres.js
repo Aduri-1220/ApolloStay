@@ -10,6 +10,8 @@ const {
   mealPlansPath,
   customFoodsPath,
   favoritesPath,
+  plannerCandidatesPath,
+  reviewedPlannerMealsPath,
   workoutLogsPath,
   workoutExerciseCachePath,
   medicalParserCachePath
@@ -168,6 +170,44 @@ async function main() {
     );
   }
   await markCollection("favorite_foods", favorites.length);
+
+  const plannerCandidates = list(loadMealLogs(plannerCandidatesPath));
+  for (const candidate of plannerCandidates) {
+    await query(
+      `INSERT INTO planner_candidates (id, meal_type, normalized_title, status, quality_score, updated_at, raw)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, NOW()), $7::jsonb)
+       ON CONFLICT (id)
+       DO UPDATE SET meal_type = EXCLUDED.meal_type, normalized_title = EXCLUDED.normalized_title, status = EXCLUDED.status, quality_score = EXCLUDED.quality_score, updated_at = EXCLUDED.updated_at, raw = EXCLUDED.raw`,
+      [
+        String(candidate.id),
+        candidate.mealType || null,
+        candidate.normalizedTitle || null,
+        candidate.status || "candidate",
+        Number(candidate.qualityScore || 0),
+        candidate.reviewedAt || candidate.lastSeenAt || candidate.createdAt || null,
+        JSON.stringify(candidate)
+      ]
+    );
+  }
+  await markCollection("planner_candidates", plannerCandidates.length);
+
+  const reviewedPlannerMeals = list(loadMealLogs(reviewedPlannerMealsPath));
+  for (const meal of reviewedPlannerMeals) {
+    await query(
+      `INSERT INTO reviewed_planner_meals (id, meal_type, source_candidate_id, reviewed_at, raw)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
+       ON CONFLICT (id)
+       DO UPDATE SET meal_type = EXCLUDED.meal_type, source_candidate_id = EXCLUDED.source_candidate_id, reviewed_at = EXCLUDED.reviewed_at, raw = EXCLUDED.raw`,
+      [
+        String(meal.id),
+        meal.mealType || null,
+        meal.sourceCandidateId || null,
+        meal.reviewedAt || null,
+        JSON.stringify(meal)
+      ]
+    );
+  }
+  await markCollection("reviewed_planner_meals", reviewedPlannerMeals.length);
 
   const workoutLogs = list(loadMealLogs(workoutLogsPath)).map((item) => withId(item, "workout"));
   for (const log of workoutLogs) {

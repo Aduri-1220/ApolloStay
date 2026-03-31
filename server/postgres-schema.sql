@@ -115,3 +115,28 @@ CREATE TABLE IF NOT EXISTS app_collections (
   migrated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   record_count INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS planner_candidates (
+  id TEXT PRIMARY KEY,
+  meal_type TEXT,
+  normalized_title TEXT,
+  status TEXT,
+  quality_score DOUBLE PRECISION DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  raw JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS planner_candidates_meal_type_idx ON planner_candidates(meal_type);
+CREATE INDEX IF NOT EXISTS planner_candidates_status_idx ON planner_candidates(status);
+CREATE INDEX IF NOT EXISTS planner_candidates_quality_score_idx ON planner_candidates(quality_score DESC);
+
+CREATE TABLE IF NOT EXISTS reviewed_planner_meals (
+  id TEXT PRIMARY KEY,
+  meal_type TEXT,
+  source_candidate_id TEXT,
+  reviewed_at TIMESTAMPTZ,
+  raw JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS reviewed_planner_meals_meal_type_idx ON reviewed_planner_meals(meal_type);
+CREATE INDEX IF NOT EXISTS reviewed_planner_meals_source_candidate_idx ON reviewed_planner_meals(source_candidate_id);

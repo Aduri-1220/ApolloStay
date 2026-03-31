@@ -2336,7 +2336,7 @@ const server = http.createServer(async (request, response) => {
 
     if (request.method === "GET" && url.pathname === "/admin/planner-candidates") {
       requireAdminUser(authUser);
-      sendJson(response, 200, listPlannerCandidatesForReview(plannerCandidatesPath));
+      sendJson(response, 200, await listPlannerCandidatesForReview(plannerCandidatesPath));
       return;
     }
 
@@ -2344,7 +2344,7 @@ const server = http.createServer(async (request, response) => {
       requireAdminUser(authUser);
       const candidateId = decodeURIComponent(url.pathname.split("/")[3] || "");
       const body = await parseBody(request);
-      const promoted = promotePlannerCandidate({
+      const promoted = await promotePlannerCandidate({
         candidatesPath: plannerCandidatesPath,
         reviewedMealsPath: reviewedPlannerMealsPath,
         candidateId,
@@ -2365,7 +2365,7 @@ const server = http.createServer(async (request, response) => {
       requireAdminUser(authUser);
       const candidateId = decodeURIComponent(url.pathname.split("/")[3] || "");
       const body = await parseBody(request);
-      const rejected = rejectPlannerCandidate({
+      const rejected = await rejectPlannerCandidate({
         candidatesPath: plannerCandidatesPath,
         candidateId,
         reviewedBy: authUser.email || authUser.id,
@@ -3032,7 +3032,7 @@ const server = http.createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && url.pathname === "/planner/catalog-meals") {
-      const plannerFeedbackIndex = buildPlannerFeedbackIndex(loadPlannerCandidates(plannerCandidatesPath));
+      const plannerFeedbackIndex = buildPlannerFeedbackIndex(await loadPlannerCandidates(plannerCandidatesPath));
       const annotateWithFeedback = (meal) => {
         const feedbackKey = `${normalizePlannerMealText(meal.mealType || "snack")}:${normalizePlannerMealText(meal.title)}`;
         const candidate = plannerFeedbackIndex.get(feedbackKey);
@@ -3050,7 +3050,7 @@ const server = http.createServer(async (request, response) => {
         };
       };
 
-      const reviewedPlannerMeals = loadReviewedPlannerMeals(reviewedPlannerMealsPath).map(annotateWithFeedback);
+      const reviewedPlannerMeals = (await loadReviewedPlannerMeals(reviewedPlannerMealsPath)).map(annotateWithFeedback);
       const curatedPlannerMeals = await Promise.all(
         getCuratedFoods()
           .filter((food) => food?.metadata?.mealType)
@@ -3211,7 +3211,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
 
-      const updated = recordPlannerFeedback(plannerCandidatesPath, {
+      const updated = await recordPlannerFeedback(plannerCandidatesPath, {
         userId: authUser.id,
         action,
         occurredAt: new Date().toISOString(),
