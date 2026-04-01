@@ -42,6 +42,10 @@ async function markCollection(name, count) {
   );
 }
 
+function getUserId(record) {
+  return String(record?.userId || record?.id || "").trim();
+}
+
 async function main() {
   if (!isPostgresEnabled()) {
     throw new Error("DATABASE_URL is required to migrate data to PostgreSQL.");
@@ -50,7 +54,9 @@ async function main() {
   await runSqlFile(path.join(__dirname, "postgres-schema.sql"));
 
   const users = list(loadMealLogs(usersPath));
+  const knownUserIds = new Set();
   for (const user of users) {
+    knownUserIds.add(String(user.id));
     await query(
       `INSERT INTO users (id, public_id, email, name, password_hash, created_at, raw)
        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
@@ -62,7 +68,12 @@ async function main() {
   await markCollection("users", users.length);
 
   const sessions = list(loadMealLogs(sessionsPath));
+  let skippedSessions = 0;
   for (const session of sessions) {
+    if (!knownUserIds.has(String(session.userId || ""))) {
+      skippedSessions += 1;
+      continue;
+    }
     await query(
       `INSERT INTO sessions (token, user_id, created_at, raw)
        VALUES ($1, $2, $3, $4::jsonb)
@@ -72,11 +83,18 @@ async function main() {
     );
   }
   await markCollection("sessions", sessions.length);
+  if (skippedSessions) {
+    console.warn(`Skipped ${skippedSessions} orphan sessions during migration.`);
+  }
 
   const profiles = list(loadMealLogs(profileOverridesPath));
+  let skippedProfiles = 0;
   for (const profile of profiles) {
     const userId = String(profile.userId || profile.id || "");
-    if (!userId) continue;
+    if (!userId || !knownUserIds.has(userId)) {
+      skippedProfiles += 1;
+      continue;
+    }
     await query(
       `INSERT INTO profiles (user_id, updated_at, raw)
        VALUES ($1, NOW(), $2::jsonb)
@@ -86,9 +104,17 @@ async function main() {
     );
   }
   await markCollection("profiles", profiles.length);
+  if (skippedProfiles) {
+    console.warn(`Skipped ${skippedProfiles} orphan profiles during migration.`);
+  }
 
   const medicalRecords = list(readMedicalRecordsRaw(medicalRecordsPath));
+  let skippedMedicalRecords = 0;
   for (const record of medicalRecords) {
+    if (!knownUserIds.has(getUserId(record))) {
+      skippedMedicalRecords += 1;
+      continue;
+    }
     await query(
       `INSERT INTO medical_records (id, user_id, filename, mime_type, uploaded_at, status, parser_version, stored_path, object_key, object_url, raw)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
@@ -110,9 +136,17 @@ async function main() {
     );
   }
   await markCollection("medical_records", medicalRecords.length);
+  if (skippedMedicalRecords) {
+    console.warn(`Skipped ${skippedMedicalRecords} orphan medical records during migration.`);
+  }
 
   const mealLogs = list(loadMealLogs(mealLogPath)).map((item) => withId(item, "meal"));
+  let skippedMealLogs = 0;
   for (const log of mealLogs) {
+    if (!knownUserIds.has(getUserId(log))) {
+      skippedMealLogs += 1;
+      continue;
+    }
     await query(
       `INSERT INTO meal_logs (id, user_id, meal_type, consumed_at, raw)
        VALUES ($1, $2, $3, $4, $5::jsonb)
@@ -122,9 +156,17 @@ async function main() {
     );
   }
   await markCollection("meal_logs", mealLogs.length);
+  if (skippedMealLogs) {
+    console.warn(`Skipped ${skippedMealLogs} orphan meal logs during migration.`);
+  }
 
   const hydrationLogs = list(loadMealLogs(hydrationLogPath)).map((item) => withId(item, "hydration"));
+  let skippedHydrationLogs = 0;
   for (const log of hydrationLogs) {
+    if (!knownUserIds.has(getUserId(log))) {
+      skippedHydrationLogs += 1;
+      continue;
+    }
     await query(
       `INSERT INTO hydration_logs (id, user_id, logged_at, raw)
        VALUES ($1, $2, $3, $4::jsonb)
@@ -134,9 +176,17 @@ async function main() {
     );
   }
   await markCollection("hydration_logs", hydrationLogs.length);
+  if (skippedHydrationLogs) {
+    console.warn(`Skipped ${skippedHydrationLogs} orphan hydration logs during migration.`);
+  }
 
   const mealPlans = list(loadMealLogs(mealPlansPath)).map((item) => withId(item, "plan"));
+  let skippedMealPlans = 0;
   for (const plan of mealPlans) {
+    if (!knownUserIds.has(getUserId(plan))) {
+      skippedMealPlans += 1;
+      continue;
+    }
     await query(
       `INSERT INTO meal_plans (id, user_id, plan_date, updated_at, raw)
        VALUES ($1, $2, $3, $4, $5::jsonb)
@@ -146,9 +196,17 @@ async function main() {
     );
   }
   await markCollection("meal_plans", mealPlans.length);
+  if (skippedMealPlans) {
+    console.warn(`Skipped ${skippedMealPlans} orphan meal plans during migration.`);
+  }
 
   const customFoods = list(loadMealLogs(customFoodsPath));
+  let skippedCustomFoods = 0;
   for (const food of customFoods) {
+    if (!knownUserIds.has(getUserId(food))) {
+      skippedCustomFoods += 1;
+      continue;
+    }
     await query(
       `INSERT INTO custom_foods (id, user_id, description, barcode, raw)
        VALUES ($1, $2, $3, $4, $5::jsonb)
@@ -158,9 +216,17 @@ async function main() {
     );
   }
   await markCollection("custom_foods", customFoods.length);
+  if (skippedCustomFoods) {
+    console.warn(`Skipped ${skippedCustomFoods} orphan custom foods during migration.`);
+  }
 
   const favorites = list(loadMealLogs(favoritesPath));
+  let skippedFavorites = 0;
   for (const favorite of favorites) {
+    if (!knownUserIds.has(getUserId(favorite))) {
+      skippedFavorites += 1;
+      continue;
+    }
     await query(
       `INSERT INTO favorite_foods (user_id, food_id, raw)
        VALUES ($1, $2, $3::jsonb)
@@ -170,6 +236,9 @@ async function main() {
     );
   }
   await markCollection("favorite_foods", favorites.length);
+  if (skippedFavorites) {
+    console.warn(`Skipped ${skippedFavorites} orphan favorite foods during migration.`);
+  }
 
   const plannerCandidates = list(loadMealLogs(plannerCandidatesPath));
   for (const candidate of plannerCandidates) {
@@ -210,7 +279,12 @@ async function main() {
   await markCollection("reviewed_planner_meals", reviewedPlannerMeals.length);
 
   const workoutLogs = list(loadMealLogs(workoutLogsPath)).map((item) => withId(item, "workout"));
+  let skippedWorkoutLogs = 0;
   for (const log of workoutLogs) {
+    if (!knownUserIds.has(getUserId(log))) {
+      skippedWorkoutLogs += 1;
+      continue;
+    }
     await query(
       `INSERT INTO workout_logs (id, user_id, performed_at, category, raw)
        VALUES ($1, $2, $3, $4, $5::jsonb)
@@ -220,6 +294,9 @@ async function main() {
     );
   }
   await markCollection("workout_logs", workoutLogs.length);
+  if (skippedWorkoutLogs) {
+    console.warn(`Skipped ${skippedWorkoutLogs} orphan workout logs during migration.`);
+  }
 
   const exercises = list(loadMealLogs(workoutExerciseCachePath)).map((item) => withId(item, "exercise"));
   for (const exercise of exercises) {
