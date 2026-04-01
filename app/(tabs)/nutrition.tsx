@@ -227,6 +227,9 @@ function getVoiceItemLabel(item: VoiceMealParseResponse["items"][number]) {
 
 function getVoiceErrorMessage(error: Error) {
   const baseMessage = error.message || "Voice logging could not start.";
+  if (/HF_TOKEN|HUGGINGFACE_API_KEY/.test(baseMessage)) {
+    return "Voice microphone parsing is not configured on the beta server yet. Use the text parser in the Voice tab for now, or add a Hugging Face token to the hosted backend.";
+  }
   if (Platform.OS === "ios") {
     return `${baseMessage} If you are testing in iPhone Simulator, microphone capture can be limited. Try a real device, or in Simulator choose I/O > Audio Input before retrying.`;
   }

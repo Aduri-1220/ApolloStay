@@ -36,17 +36,41 @@ export default function WorkoutsScreen() {
   const loadWorkoutData = useCallback(async () => {
     try {
       setLoading(true);
-      const [statsResponse, logsResponse, categoriesResponse, exercisesResponse] = await Promise.all([
+      const [statsResponse, logsResponse, categoriesResponse, exercisesResponse] = await Promise.allSettled([
         getWorkoutStats(),
         getWorkoutLogs(),
         getWorkoutCategories(),
         getWorkoutExercises()
       ]);
-      setStats(statsResponse);
-      setLogs(logsResponse);
-      setCategories([ALL_CATEGORY, ...categoriesResponse]);
-      setExercises(exercisesResponse);
-      setError(null);
+
+      const loadErrors: string[] = [];
+
+      if (statsResponse.status === "fulfilled") {
+        setStats(statsResponse.value);
+      } else {
+        loadErrors.push(statsResponse.reason?.message || "Workout stats could not load.");
+      }
+
+      if (logsResponse.status === "fulfilled") {
+        setLogs(logsResponse.value);
+      } else {
+        loadErrors.push(logsResponse.reason?.message || "Workout history could not load.");
+      }
+
+      if (categoriesResponse.status === "fulfilled") {
+        setCategories([ALL_CATEGORY, ...categoriesResponse.value]);
+      } else {
+        setCategories([ALL_CATEGORY]);
+        loadErrors.push(categoriesResponse.reason?.message || "Workout categories could not load.");
+      }
+
+      if (exercisesResponse.status === "fulfilled") {
+        setExercises(exercisesResponse.value);
+      } else {
+        loadErrors.push(exercisesResponse.reason?.message || "Workout library could not load.");
+      }
+
+      setError(loadErrors.length > 0 ? loadErrors[0] : null);
     } catch (requestError) {
       setError((requestError as Error).message);
     } finally {

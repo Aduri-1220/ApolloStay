@@ -31,7 +31,9 @@ import {
   WorkoutStats
 } from "@/lib/types";
 
-const defaultBaseUrl = Platform.select({
+const hostedBetaBaseUrl = "https://apollostay-api.onrender.com";
+
+const defaultDevBaseUrl = Platform.select({
   android: "http://10.0.2.2:4000",
   default: "http://127.0.0.1:4000"
 });
@@ -81,12 +83,17 @@ function resolveApiBaseUrl() {
     return process.env.EXPO_PUBLIC_API_BASE_URL;
   }
 
+  // Beta/release builds should never fall back to emulator localhost URLs.
+  if (!__DEV__) {
+    return hostedBetaBaseUrl;
+  }
+
   const expoHost = resolveExpoHost();
   if (expoHost) {
     return `http://${expoHost}:4000`;
   }
 
-  return defaultBaseUrl || "http://127.0.0.1:4000";
+  return defaultDevBaseUrl || "http://127.0.0.1:4000";
 }
 
 export const apiBaseUrl = resolveApiBaseUrl();
@@ -139,10 +146,10 @@ async function performRequest<T>(path: string, headers: Record<string, string>, 
   } catch (error) {
     const message = (error as Error)?.message || "";
     if (message === "Aborted" || /abort/i.test(message)) {
-      throw new Error(`Server timeout. ApolloStay could not reach your local backend at ${apiBaseUrl}. Make sure the backend is running and your phone can open that address in the browser.`);
+      throw new Error(`Server timeout. ApolloStay could not reach the server at ${apiBaseUrl}. Make sure the server is running and your device can open that address in the browser.`);
     }
     if (/network request failed/i.test(message) || /load failed/i.test(message) || /fetch failed/i.test(message)) {
-      throw new Error(`Connection issue. ApolloStay could not reach your local backend at ${apiBaseUrl}. Check that the backend is running, your phone and Mac are on the same Wi‑Fi, and the phone can open that address in the browser.`);
+      throw new Error(`Connection issue. ApolloStay could not reach the server at ${apiBaseUrl}. Check that the server is running and your device can open that address in the browser.`);
     }
     throw error;
   } finally {

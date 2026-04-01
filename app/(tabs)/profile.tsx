@@ -139,7 +139,7 @@ export default function ProfileScreen() {
   };
 
   const loadPageData = useCallback(() => {
-    Promise.all([
+    Promise.allSettled([
       getProfile(),
       getMedicalRecords(),
       getAdminCustomFoodReviewQueue().catch((requestError: Error) =>
@@ -152,13 +152,45 @@ export default function ProfileScreen() {
         /Admin access required/.test(requestError.message) ? null : Promise.reject(requestError)
       )
     ])
-      .then(([profileResponse, recordsResponse, adminQueueResponse, plannerCandidatesResponse, catalogAuditResponse]) => {
-        setProfile(profileResponse);
-        setRecords(recordsResponse);
-        setAdminQueue(adminQueueResponse);
-        setPlannerCandidates(plannerCandidatesResponse);
-        setCatalogAudit(catalogAuditResponse);
-        setError(null);
+      .then((results) => {
+        const [profileResponse, recordsResponse, adminQueueResponse, plannerCandidatesResponse, catalogAuditResponse] = results;
+        const loadErrors: string[] = [];
+
+        if (profileResponse.status === "fulfilled") {
+          setProfile(profileResponse.value);
+        } else {
+          loadErrors.push(profileResponse.reason?.message || "Profile could not load.");
+        }
+
+        if (recordsResponse.status === "fulfilled") {
+          setRecords(recordsResponse.value);
+        } else {
+          setRecords([]);
+          loadErrors.push(recordsResponse.reason?.message || "Medical records could not load.");
+        }
+
+        if (adminQueueResponse.status === "fulfilled") {
+          setAdminQueue(adminQueueResponse.value);
+        } else {
+          setAdminQueue(null);
+          loadErrors.push(adminQueueResponse.reason?.message || "Admin review queue could not load.");
+        }
+
+        if (plannerCandidatesResponse.status === "fulfilled") {
+          setPlannerCandidates(plannerCandidatesResponse.value);
+        } else {
+          setPlannerCandidates(null);
+          loadErrors.push(plannerCandidatesResponse.reason?.message || "Planner candidates could not load.");
+        }
+
+        if (catalogAuditResponse.status === "fulfilled") {
+          setCatalogAudit(catalogAuditResponse.value);
+        } else {
+          setCatalogAudit(null);
+          loadErrors.push(catalogAuditResponse.reason?.message || "Catalog audit could not load.");
+        }
+
+        setError(loadErrors.length > 0 ? loadErrors[0] : null);
       })
       .catch((requestError: Error) => {
         setError(requestError.message);
