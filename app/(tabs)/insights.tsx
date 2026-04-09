@@ -28,21 +28,46 @@ export default function InsightsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<"calories" | "protein" | "carbs" | "fat">("calories");
+  const hasInsightsContent = Boolean(dashboard) || Boolean(weekly) || medicalRecords.length > 0;
 
-  const loadInsights = useCallback(() => {
-    Promise.all([getDashboard(), getWeeklyInsights(), getMedicalRecords()])
-      .then(([dashboardResponse, weeklyResponse, recordsResponse]) => {
-        setDashboard(dashboardResponse);
-        setWeekly(weeklyResponse);
-        setMedicalRecords(recordsResponse);
-        setError(null);
-      })
-      .catch((requestError: Error) => {
-        setError(requestError.message);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+  const loadInsights = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [dashboardResponse, weeklyResponse, recordsResponse] = await Promise.allSettled([
+        getDashboard(),
+        getWeeklyInsights(),
+        getMedicalRecords()
+      ]);
+
+      const loadErrors: string[] = [];
+
+      if (dashboardResponse.status === "fulfilled") {
+        setDashboard(dashboardResponse.value);
+      } else {
+        setDashboard(null);
+        loadErrors.push(dashboardResponse.reason?.message || "Dashboard insights could not load.");
+      }
+
+      if (weeklyResponse.status === "fulfilled") {
+        setWeekly(weeklyResponse.value);
+      } else {
+        setWeekly(null);
+        loadErrors.push(weeklyResponse.reason?.message || "Weekly insights could not load.");
+      }
+
+      if (recordsResponse.status === "fulfilled") {
+        setMedicalRecords(recordsResponse.value);
+      } else {
+        setMedicalRecords([]);
+        loadErrors.push(recordsResponse.reason?.message || "Medical records could not load.");
+      }
+
+      setError(loadErrors.length > 0 ? loadErrors[0] : null);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -66,7 +91,7 @@ export default function InsightsScreen() {
         </View>
 
         {loading ? <LoadingCard label="Calculating weekly insights..." /> : null}
-        {error ? <ErrorCard message={error} /> : null}
+        {error && !hasInsightsContent ? <ErrorCard message={error} /> : null}
         {dashboard && weekly ? (
           <>
             <View style={styles.coachBriefCard}>

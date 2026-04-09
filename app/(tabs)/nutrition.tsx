@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Vibration } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Vibration, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -280,6 +280,8 @@ function buildWeekCalendar(days: DashboardResponse["weeklySummary"]["days"], cur
 
 export default function NutritionScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 480;
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder);
   const mealCameraRef = useRef<CameraView | null>(null);
@@ -371,19 +373,31 @@ export default function NutritionScreen() {
   const currentMealBreakdown = dashboard?.mealBreakdown.find((meal) => meal.mealType === mealType) || null;
   const currentMealDiscovery =
     searchCollectionTab === "favorites" ? favoriteFoods : searchCollectionTab === "recent" ? recentFoods : [];
+  const hasNutritionContent =
+    Boolean(dashboard) || Boolean(profile) || recentFoods.length > 0 || favoriteFoods.length > 0;
 
   const loadPageData = useCallback(() => {
-    Promise.all([getProfile(), getDashboard(), getRecentFoods(), getFavoriteFoods()])
-      .then(([profileResponse, dashboardResponse, recentResponse, favoritesResponse]) => {
-        setProfile(profileResponse);
-        setDashboard(dashboardResponse);
-        setRecentFoods(recentResponse);
-        setFavoriteFoods(favoritesResponse);
-        setError(null);
-      })
-      .catch((requestError: Error) => {
-        setError(requestError.message);
-      });
+    Promise.allSettled([getProfile(), getDashboard(), getRecentFoods(), getFavoriteFoods()]).then(
+      ([profileResponse, dashboardResponse, recentResponse, favoritesResponse]) => {
+        if (profileResponse.status === "fulfilled") {
+          setProfile(profileResponse.value);
+        }
+        if (dashboardResponse.status === "fulfilled") {
+          setDashboard(dashboardResponse.value);
+        }
+        if (recentResponse.status === "fulfilled") {
+          setRecentFoods(recentResponse.value);
+        }
+        if (favoritesResponse.status === "fulfilled") {
+          setFavoriteFoods(favoritesResponse.value);
+        }
+
+        const firstError = [profileResponse, dashboardResponse, recentResponse, favoritesResponse].find(
+          (result): result is PromiseRejectedResult => result.status === "rejected"
+        );
+        setError(firstError ? (firstError.reason as Error).message : null);
+      }
+    );
   }, []);
 
   useEffect(() => {
@@ -1053,14 +1067,14 @@ export default function NutritionScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.heroShell}
         >
-          <View style={styles.heroTopRow}>
+          <View style={[styles.heroTopRow, isCompact && styles.heroTopRowCompact]}>
             <View>
               <Text style={styles.heroDateLabel}>
                 {new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })}
               </Text>
               <Text style={styles.title}>Nutrition</Text>
             </View>
-            <View style={styles.heroBadge}>
+            <View style={[styles.heroBadge, isCompact && styles.heroBadgeCompact]}>
               <Ionicons name="flash" size={14} color={palette.primary} />
               <Text style={styles.heroBadgeText}>{dashboard ? `${dashboard.summary.mealCount} meals` : "Ready"}</Text>
             </View>
@@ -1079,7 +1093,7 @@ export default function NutritionScreen() {
               <View style={styles.heroProgressTrack}>
                 <View style={[styles.heroProgressFill, { width: `${Math.max(8, calorieProgress * 100)}%` }]} />
               </View>
-              <View style={styles.heroMacroRowCompact}>
+              <View style={[styles.heroMacroRowCompact, isCompact && styles.heroMacroRowCompactWrap]}>
                 <View style={styles.heroMacroItem}>
                   <Text style={styles.heroMacroLabel}>Carbs</Text>
                   <Text style={styles.heroMacroValue}>{dashboard.summary.carbs} g</Text>
@@ -1097,7 +1111,7 @@ export default function NutritionScreen() {
           ) : null}
         </LinearGradient>
 
-        {error ? <ErrorCard message={error} /> : null}
+        {error && !hasNutritionContent ? <ErrorCard message={error} /> : null}
         {foodLoading ? <LoadingCard label="Loading food details..." /> : null}
 
         {(favoriteFoods.length > 0 || recentFoods.length > 0 || dashboard) ? (
@@ -1115,13 +1129,21 @@ export default function NutritionScreen() {
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickAccessRail}>
               {favoriteFoods.slice(0, 4).map((food) => (
-                <Pressable key={`favorite-${food.fdcId}`} onPress={() => handleSelectFood(food.fdcId)} style={styles.quickAccessPill}>
+                <Pressable
+                  key={`favorite-${food.fdcId}`}
+                  onPress={() => handleSelectFood(food.fdcId)}
+                  style={[styles.quickAccessPill, isCompact && styles.quickAccessPillCompact]}
+                >
                   <Text style={styles.quickAccessLabel}>Saved</Text>
                   <Text numberOfLines={2} style={styles.quickAccessText}>{food.description}</Text>
                 </Pressable>
               ))}
               {recentFoods.slice(0, 6).map((food) => (
-                <Pressable key={`recent-${food.fdcId}`} onPress={() => handleSelectFood(food.fdcId)} style={styles.quickAccessPill}>
+                <Pressable
+                  key={`recent-${food.fdcId}`}
+                  onPress={() => handleSelectFood(food.fdcId)}
+                  style={[styles.quickAccessPill, isCompact && styles.quickAccessPillCompact]}
+                >
                   <Text style={styles.quickAccessLabel}>Recent</Text>
                   <Text numberOfLines={2} style={styles.quickAccessText}>{food.description}</Text>
                 </Pressable>
@@ -1615,7 +1637,7 @@ export default function NutritionScreen() {
               <Pressable
                 key={`session-${item}`}
                 onPress={() => setMealType(item)}
-                style={[styles.sessionTab, selected && styles.sessionTabActive]}
+                style={[styles.sessionTab, isCompact && styles.sessionTabCompact, selected && styles.sessionTabActive]}
               >
                 <Text style={[styles.sessionTabLabel, selected && styles.sessionTabLabelActive]}>
                   {item.charAt(0).toUpperCase() + item.slice(1)}
@@ -1813,6 +1835,9 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: spacing.md
   },
+  heroTopRowCompact: {
+    flexWrap: "wrap"
+  },
   heroDateLabel: {
     color: palette.textSubtle,
     fontSize: typography.caption,
@@ -1830,6 +1855,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#BFDBFE"
+  },
+  heroBadgeCompact: {
+    marginTop: spacing.xs
   },
   heroBadgeText: {
     color: palette.primary,
@@ -1937,6 +1965,9 @@ const styles = StyleSheet.create({
   heroMacroRowCompact: {
     flexDirection: "row",
     gap: spacing.sm
+  },
+  heroMacroRowCompactWrap: {
+    flexWrap: "wrap"
   },
   heroMacroItem: {
     flex: 1,
@@ -2115,6 +2146,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     padding: spacing.md,
     gap: spacing.xs
+  },
+  quickAccessPillCompact: {
+    width: 124
   },
   quickAccessLabel: {
     color: palette.primary,
@@ -2382,6 +2416,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     gap: 2
+  },
+  sessionTabCompact: {
+    width: "100%"
   },
   sessionTabActive: {
     borderColor: "#93C5FD",

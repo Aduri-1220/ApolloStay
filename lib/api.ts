@@ -97,7 +97,8 @@ function resolveApiBaseUrl() {
 }
 
 export const apiBaseUrl = resolveApiBaseUrl();
-const requestTimeoutMs = 30000;
+// Render free-tier cold starts can take close to a minute.
+const requestTimeoutMs = 65000;
 
 function getSessionHeaders(session?: AuthSession | null) {
   if (!session) {
@@ -117,7 +118,11 @@ function normalizeErrorText(rawText: string, status?: number) {
 
   try {
     const parsed = JSON.parse(rawText) as { error?: string; message?: string };
-    return parsed.error || parsed.message || rawText;
+    const normalizedMessage =
+      [parsed.error, parsed.message].find(
+        (value) => typeof value === "string" && value.trim().length > 0
+      ) || "";
+    return normalizedMessage || (status ? `Request failed: ${status}` : "Request failed.");
   } catch {
     return rawText;
   }

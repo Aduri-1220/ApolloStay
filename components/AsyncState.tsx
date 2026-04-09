@@ -11,10 +11,17 @@ export function LoadingCard({ label }: { label: string }) {
 }
 
 export function ErrorCard({ message }: { message: string }) {
+  const normalizedMessage = String(message || "").trim();
+  const sanitizedMessage =
+    !normalizedMessage || normalizedMessage === '{"error":""}' || normalizedMessage === '{"error":""}\n'
+      ? "Please try again in a moment."
+      : normalizedMessage;
+  const isConnectionIssue = /timeout|connection|reach the server|network|request failed/i.test(normalizedMessage);
+
   return (
     <View style={styles.card}>
-      <Text style={styles.errorTitle}>Connection issue</Text>
-      <Text style={styles.text}>{message}</Text>
+      <Text style={styles.errorTitle}>{isConnectionIssue ? "Connection issue" : "Something went wrong"}</Text>
+      <Text style={styles.text}>{sanitizedMessage}</Text>
     </View>
   );
 }

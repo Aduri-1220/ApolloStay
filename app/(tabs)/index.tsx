@@ -71,7 +71,7 @@ function groupHydrationLogs(logs: DashboardResponse["hydrationLogs"]) {
 export default function HomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const isCompact = width < 420;
+  const isCompact = width < 480;
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -162,8 +162,8 @@ export default function HomeScreen() {
           </Text>
 
           {dashboard ? (
-            <View style={styles.glanceGrid}>
-              <View style={styles.glanceCard}>
+            <View style={[styles.glanceGrid, isCompact && styles.glanceGridCompact]}>
+              <View style={[styles.glanceCard, isCompact && styles.glanceCardCompact]}>
                 <View style={styles.glanceHeader}>
                   <Text style={styles.glanceLabel}>Calories</Text>
                   <View style={[styles.glanceIconWrap, styles.glanceOrange]}>
@@ -174,7 +174,7 @@ export default function HomeScreen() {
                 <Text style={styles.glanceDetail}>of {dashboard.profile.dailyCalorieTarget} kcal</Text>
                 <View style={[styles.glanceAccent, styles.glanceAccentOrange]} />
               </View>
-              <View style={styles.glanceCard}>
+              <View style={[styles.glanceCard, isCompact && styles.glanceCardCompact]}>
                 <View style={styles.glanceHeader}>
                   <Text style={styles.glanceLabel}>Steps</Text>
                   <View style={[styles.glanceIconWrap, styles.glanceGreen]}>
@@ -194,7 +194,7 @@ export default function HomeScreen() {
                 </Text>
                 <View style={[styles.glanceAccent, styles.glanceAccentGreen]} />
               </View>
-              <View style={styles.glanceCard}>
+              <View style={[styles.glanceCard, isCompact && styles.glanceCardCompact]}>
                 <View style={styles.glanceHeader}>
                   <Text style={styles.glanceLabel}>Sleep</Text>
                   <View style={[styles.glanceIconWrap, styles.glanceViolet]}>
@@ -216,7 +216,7 @@ export default function HomeScreen() {
                 </Text>
                 <View style={[styles.glanceAccent, styles.glanceAccentViolet]} />
               </View>
-              <View style={styles.glanceCard}>
+              <View style={[styles.glanceCard, isCompact && styles.glanceCardCompact]}>
                 <View style={styles.glanceHeader}>
                   <Text style={styles.glanceLabel}>Water</Text>
                   <View style={[styles.glanceIconWrap, styles.glanceCyan]}>
@@ -233,7 +233,7 @@ export default function HomeScreen() {
         </LinearGradient>
 
         {loading ? <LoadingCard label="Loading dashboard from the API..." /> : null}
-        {error ? <ErrorCard message={error} /> : null}
+        {error && !dashboard ? <ErrorCard message={error} /> : null}
 
         {dashboard ? (
           <>
@@ -537,6 +537,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.md
   },
+  glanceGridCompact: {
+    gap: spacing.sm
+  },
   glanceCard: {
     width: "47%",
     minWidth: 0,
@@ -552,6 +555,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 2,
     overflow: "hidden"
+  },
+  glanceCardCompact: {
+    width: "100%"
   },
   glanceHeader: {
     flexDirection: "row",

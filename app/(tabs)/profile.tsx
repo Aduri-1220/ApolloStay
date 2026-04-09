@@ -627,12 +627,18 @@ export default function ProfileScreen() {
         return right.loggedCount - left.loggedCount;
       });
   }, [plannerCandidates, plannerFilterMode, plannerSearchQuery, plannerSortMode]);
+  const hasProfileContent =
+    Boolean(profile) ||
+    records.length > 0 ||
+    Boolean(adminQueue?.foods.length) ||
+    filteredPlannerCandidates.length > 0 ||
+    Boolean(catalogAudit);
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {loading ? <LoadingCard label="Loading profile..." /> : null}
-        {error ? <ErrorCard message={error} /> : null}
+        {error && !hasProfileContent ? <ErrorCard message={error} /> : null}
 
         {profile ? (
           <>

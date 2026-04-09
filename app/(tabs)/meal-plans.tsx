@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -1017,6 +1017,8 @@ async function savePlannerDraft(profile: Profile | null, draft: PlannerDraftStat
 
 export default function MealPlansScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isCompact = width < 460;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [medicalRecords, setMedicalRecords] = useState<MedicalRecord[]>([]);
   const [dashboardByDate, setDashboardByDate] = useState<Record<string, DashboardResponse>>({});
@@ -1514,28 +1516,28 @@ export default function MealPlansScreen() {
               <Text style={[styles.plannerTabText, plannerTab === "groceries" && styles.plannerTabTextActive]}>Groceries</Text>
             </Pressable>
           </View>
-          <View style={styles.actionGrid}>
+          <View style={[styles.actionGrid, isCompact && styles.actionGridCompact]}>
             {[
               { label: "Generate", icon: "add" as const, onPress: handleGeneratePlan },
               { label: "Planner", icon: "create-outline" as const, onPress: () => setPlannerTab("planner") },
               { label: "Groceries", icon: "ellipsis-horizontal" as const, onPress: () => setPlannerTab("groceries") }
             ].map((action) => (
-              <Pressable key={action.label} onPress={action.onPress} style={styles.actionCard}>
+              <Pressable key={action.label} onPress={action.onPress} style={[styles.actionCard, isCompact && styles.actionCardCompact]}>
                 <Ionicons name={action.icon} size={22} color={palette.primary} />
-                <Text style={styles.actionCardText}>{action.label}</Text>
+                <Text style={[styles.actionCardText, isCompact && styles.actionCardTextCompact]}>{action.label}</Text>
               </Pressable>
             ))}
           </View>
-          <View style={styles.heroStatsRow}>
-            <View style={styles.heroStatPill}>
+          <View style={[styles.heroStatsRow, isCompact && styles.heroStatsRowCompact]}>
+            <View style={[styles.heroStatPill, isCompact && styles.heroStatPillCompact]}>
               <Text style={styles.heroStatValue}>{approvedCount}</Text>
               <Text style={styles.heroStatLabel}>accepted</Text>
             </View>
-            <View style={styles.heroStatPill}>
+            <View style={[styles.heroStatPill, isCompact && styles.heroStatPillCompact]}>
               <Text style={styles.heroStatValue}>{resolvedPlan?.meals.length || 0}</Text>
               <Text style={styles.heroStatLabel}>today slots</Text>
             </View>
-            <View style={styles.heroStatPill}>
+            <View style={[styles.heroStatPill, isCompact && styles.heroStatPillCompact]}>
               <Text style={styles.heroStatValue}>{totalGroceryCount}</Text>
               <Text style={styles.heroStatLabel}>shopping items</Text>
             </View>
@@ -2061,11 +2063,18 @@ const styles = StyleSheet.create({
   },
   actionGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.md
+  },
+  actionGridCompact: {
+    gap: spacing.sm
   },
   heroStatsRow: {
     flexDirection: "row",
     gap: spacing.sm
+  },
+  heroStatsRowCompact: {
+    flexWrap: "wrap"
   },
   heroStatPill: {
     flex: 1,
@@ -2077,6 +2086,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     alignItems: "center",
     gap: 2
+  },
+  heroStatPillCompact: {
+    minWidth: "48%"
   },
   heroStatValue: {
     color: "#B45309",
@@ -2090,7 +2102,9 @@ const styles = StyleSheet.create({
     textTransform: "uppercase"
   },
   actionCard: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: "31%",
+    minWidth: 92,
     borderRadius: radii.xl,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
@@ -2100,10 +2114,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm
   },
+  actionCardCompact: {
+    flexBasis: "48%",
+    minWidth: 0
+  },
   actionCardText: {
     color: "#D97706",
     fontSize: typography.body,
-    fontWeight: "800"
+    fontWeight: "800",
+    textAlign: "center"
+  },
+  actionCardTextCompact: {
+    fontSize: 18
   },
   header: {
     gap: spacing.sm

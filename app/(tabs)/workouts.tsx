@@ -25,6 +25,8 @@ export default function WorkoutsScreen() {
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const hasWorkoutContent = Boolean(stats) || logs.length > 0 || exercises.length > 0 || categories.length > 1;
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORY);
@@ -153,7 +155,7 @@ export default function WorkoutsScreen() {
         </View>
 
         {loading ? <LoadingCard label="Loading workouts..." /> : null}
-        {error ? <ErrorCard message={error} /> : null}
+        {error && !hasWorkoutContent ? <ErrorCard message={error} /> : null}
 
         {stats ? (
           <View style={styles.statsGrid}>
